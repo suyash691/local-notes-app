@@ -1,0 +1,5 @@
+*.log
+build/Release
+node_modules/
+.npm
+notes.db

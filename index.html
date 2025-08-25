@@ -1,0 +1,1171 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notes & TODOs App</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+        }
+
+        .container {
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+
+        h1 {
+            color: white;
+            text-align: center;
+            margin-bottom: 30px;
+            font-size: 2.5em;
+            text-shadow: 2px 2px 4px rgba(0,0,0,0.2);
+        }
+
+        .tabs {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            justify-content: center;
+        }
+
+        .tab {
+            background: rgba(255,255,255,0.2);
+            color: white;
+            border: 2px solid rgba(255,255,255,0.3);
+            padding: 12px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .tab.active {
+            background: white;
+            color: #667eea;
+            border-color: white;
+        }
+
+        .tab:hover:not(.active) {
+            background: rgba(255,255,255,0.3);
+        }
+
+        .controls {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        .controls-row {
+            display: flex;
+            gap: 15px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+
+        .search-bar {
+            position: relative;
+            flex: 1;
+            min-width: 250px;
+        }
+
+        .search-bar input {
+            width: 100%;
+            padding: 12px 40px 12px 15px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            transition: border-color 0.3s;
+        }
+
+        .search-bar input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .search-icon {
+            position: absolute;
+            right: 15px;
+            top: 50%;
+            transform: translateY(-50%);
+            color: #999;
+        }
+
+        .date-filter {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+        }
+
+        .date-filter input {
+            padding: 10px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 14px;
+        }
+
+        .date-filter input:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .btn-primary {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            color: white;
+            border: none;
+            padding: 12px 30px;
+            border-radius: 10px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 5px 20px rgba(102, 126, 234, 0.4);
+        }
+
+        .date-group {
+            margin-bottom: 30px;
+        }
+
+        .date-group-header {
+            color: white;
+            font-size: 1.3em;
+            font-weight: 600;
+            margin-bottom: 15px;
+            padding: 10px 15px;
+            background: rgba(255,255,255,0.1);
+            border-radius: 10px;
+            backdrop-filter: blur(10px);
+        }
+
+        .notes-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+            margin-bottom: 20px;
+        }
+
+        .note-card {
+            background: white;
+            border-radius: 15px;
+            padding: 20px;
+            box-shadow: 0 5px 20px rgba(0,0,0,0.1);
+            position: relative;
+            transition: transform 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            overflow: hidden;
+        }
+
+        .note-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 10px 30px rgba(0,0,0,0.15);
+        }
+
+        .note-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: start;
+            margin-bottom: 12px;
+        }
+
+        .note-title {
+            font-size: 1.3em;
+            font-weight: 600;
+            color: #333;
+            flex: 1;
+            margin-right: 10px;
+        }
+
+        .note-actions {
+            display: flex;
+            gap: 8px;
+        }
+
+        .btn-icon {
+            background: none;
+            border: none;
+            font-size: 18px;
+            cursor: pointer;
+            padding: 5px;
+            border-radius: 5px;
+            transition: background 0.2s;
+        }
+
+        .btn-icon:hover {
+            background: #f0f0f0;
+        }
+
+        .btn-delete:hover {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .note-content {
+            color: #666;
+            line-height: 1.6;
+            max-height: 200px;
+            overflow: hidden;
+            position: relative;
+        }
+
+        .note-content h1, .note-content h2, .note-content h3 {
+            margin: 10px 0;
+        }
+
+        .note-content ul, .note-content ol {
+            margin-left: 20px;
+        }
+
+        .note-content code {
+            background: #f5f5f5;
+            padding: 2px 5px;
+            border-radius: 3px;
+        }
+
+        .note-content pre {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            overflow-x: auto;
+        }
+
+        .note-content::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            height: 30px;
+            background: linear-gradient(transparent, white);
+        }
+
+        .note-date {
+            margin-top: 15px;
+            font-size: 0.85em;
+            color: #999;
+        }
+
+        .todo-stats {
+            display: inline-flex;
+            align-items: center;
+            gap: 5px;
+            background: #f0f4ff;
+            color: #667eea;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 0.85em;
+            margin-left: 10px;
+        }
+
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            right: 0;
+            bottom: 0;
+            background: rgba(0,0,0,0.5);
+            backdrop-filter: blur(5px);
+            z-index: 1000;
+            animation: fadeIn 0.3s;
+        }
+
+        .modal.active {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        @keyframes slideIn {
+            from { 
+                transform: translateY(-50px);
+                opacity: 0;
+            }
+            to { 
+                transform: translateY(0);
+                opacity: 1;
+            }
+        }
+
+        .modal-content {
+            background: white;
+            border-radius: 20px;
+            padding: 30px;
+            width: 90%;
+            max-width: 800px;
+            max-height: 90vh;
+            overflow-y: auto;
+            animation: slideIn 0.3s;
+        }
+
+        .modal-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 20px;
+        }
+
+        .modal-title {
+            font-size: 1.8em;
+            color: #333;
+        }
+
+        .btn-close {
+            background: none;
+            border: none;
+            font-size: 28px;
+            cursor: pointer;
+            color: #999;
+            transition: color 0.2s;
+        }
+
+        .btn-close:hover {
+            color: #333;
+        }
+
+        .form-group {
+            margin-bottom: 20px;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 8px;
+            color: #555;
+            font-weight: 500;
+        }
+
+        .form-group input,
+        .form-group textarea {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e0e0e0;
+            border-radius: 10px;
+            font-size: 16px;
+            font-family: inherit;
+            transition: border-color 0.3s;
+        }
+
+        .form-group input:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: #667eea;
+        }
+
+        .form-group textarea {
+            min-height: 300px;
+            resize: vertical;
+            font-family: 'Courier New', monospace;
+        }
+
+        .modal-footer {
+            display: flex;
+            gap: 10px;
+            justify-content: flex-end;
+            margin-top: 25px;
+        }
+
+        .btn-secondary {
+            background: #f5f5f5;
+            color: #666;
+            border: none;
+            padding: 12px 25px;
+            border-radius: 10px;
+            font-size: 16px;
+            cursor: pointer;
+            transition: background 0.2s;
+        }
+
+        .btn-secondary:hover {
+            background: #e0e0e0;
+        }
+
+        .empty-state {
+            text-align: center;
+            padding: 60px 20px;
+            color: white;
+        }
+
+        .empty-state h2 {
+            font-size: 2em;
+            margin-bottom: 10px;
+        }
+
+        .empty-state p {
+            font-size: 1.2em;
+            opacity: 0.9;
+        }
+
+        .tag {
+            display: inline-block;
+            background: #f0f0f0;
+            color: #666;
+            padding: 4px 10px;
+            border-radius: 15px;
+            font-size: 0.85em;
+            margin-right: 5px;
+            margin-top: 10px;
+        }
+
+        .todo-section {
+            background: white;
+            border-radius: 15px;
+            padding: 25px;
+            margin-bottom: 30px;
+            box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+        }
+
+        .todo-filters {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+        }
+
+        .todo-filter-btn {
+            padding: 8px 16px;
+            border: 2px solid #e0e0e0;
+            background: white;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s;
+        }
+
+        .todo-filter-btn.active {
+            background: #667eea;
+            color: white;
+            border-color: #667eea;
+        }
+
+        .todo-list {
+            display: flex;
+            flex-direction: column;
+            gap: 15px;
+        }
+
+        .todo-item {
+            background: #f9f9f9;
+            border-radius: 10px;
+            padding: 15px;
+            display: flex;
+            align-items: start;
+            gap: 15px;
+            transition: all 0.3s;
+        }
+
+        .todo-item:hover {
+            background: #f0f4ff;
+        }
+
+        .todo-item.completed {
+            opacity: 0.7;
+            background: #f0f0f0;
+        }
+
+        .todo-checkbox {
+            width: 20px;
+            height: 20px;
+            cursor: pointer;
+            margin-top: 2px;
+        }
+
+        .todo-content {
+            flex: 1;
+        }
+
+        .todo-text {
+            color: #333;
+            margin-bottom: 5px;
+        }
+
+        .todo-item.completed .todo-text {
+            text-decoration: line-through;
+            color: #999;
+        }
+
+        .todo-meta {
+            font-size: 0.85em;
+            color: #999;
+        }
+
+        .todo-note-link {
+            color: #667eea;
+            cursor: pointer;
+            text-decoration: none;
+        }
+
+        .todo-note-link:hover {
+            text-decoration: underline;
+        }
+
+        .todo-completion {
+            background: #e8f5e9;
+            padding: 8px 12px;
+            border-radius: 5px;
+            margin-top: 8px;
+            font-size: 0.9em;
+        }
+
+        .markdown-help {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 5px;
+            font-size: 0.85em;
+            color: #666;
+            margin-top: 5px;
+        }
+
+        .preview-container {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        .preview-pane {
+            background: #f9f9f9;
+            padding: 15px;
+            border-radius: 10px;
+            max-height: 400px;
+            overflow-y: auto;
+        }
+
+        .preview-label {
+            font-size: 0.85em;
+            color: #999;
+            margin-bottom: 10px;
+        }
+
+        .loading {
+            text-align: center;
+            padding: 40px;
+            color: white;
+        }
+
+        .error {
+            background: #ffebee;
+            color: #c62828;
+            padding: 15px;
+            border-radius: 10px;
+            margin-bottom: 20px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>📝 Notes & TODOs</h1>
+        
+        <div class="tabs">
+            <button class="tab active" onclick="switchTab('notes')">Notes</button>
+            <button class="tab" onclick="switchTab('todos')">TODOs</button>
+        </div>
+
+        <div id="notesView">
+            <div class="controls">
+                <div class="controls-row">
+                    <div class="search-bar">
+                        <input type="text" id="searchInput" placeholder="Search notes...">
+                        <span class="search-icon">🔍</span>
+                    </div>
+                    <div class="date-filter">
+                        <input type="date" id="dateFrom" placeholder="From">
+                        <span>to</span>
+                        <input type="date" id="dateTo" placeholder="To">
+                        <button class="btn-secondary" onclick="clearDateFilter()">Clear</button>
+                    </div>
+                    <button class="btn-primary" onclick="openNewNoteModal()">+ New Note</button>
+                </div>
+            </div>
+
+            <div id="notesContainer"></div>
+        </div>
+
+        <div id="todosView" style="display: none;">
+            <div class="todo-section">
+                <h2 style="margin-bottom: 20px;">📋 TODO Items</h2>
+                <div class="todo-filters">
+                    <button class="todo-filter-btn active" onclick="filterTodos('active')">Active</button>
+                    <button class="todo-filter-btn" onclick="filterTodos('completed')">Completed</button>
+                    <button class="todo-filter-btn" onclick="filterTodos('all')">All</button>
+                </div>
+                <div id="todosContainer" class="todo-list"></div>
+            </div>
+        </div>
+        
+        <div class="empty-state" id="emptyState" style="display: none;">
+            <h2>No notes yet</h2>
+            <p>Create your first note to get started!</p>
+        </div>
+
+        <div class="loading" id="loadingState" style="display: none;">
+            <h2>Loading...</h2>
+        </div>
+
+        <div class="error" id="errorState" style="display: none;"></div>
+    </div>
+
+    <div class="modal" id="noteModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle">New Note</h2>
+                <button class="btn-close" onclick="closeModal()">&times;</button>
+            </div>
+            <form id="noteForm" onsubmit="saveNote(event)">
+                <div class="form-group">
+                    <label for="noteTitle">Title</label>
+                    <input type="text" id="noteTitle" required placeholder="Enter note title...">
+                </div>
+                <div class="form-group">
+                    <label for="noteContent">Content</label>
+                    <div class="preview-container">
+                        <div>
+                            <div class="preview-label">Markdown Input</div>
+                            <textarea id="noteContent" required placeholder="Write your note here..." oninput="updatePreview()"></textarea>
+                        </div>
+                        <div>
+                            <div class="preview-label">Preview</div>
+                            <div id="preview" class="preview-pane"></div>
+                        </div>
+                    </div>
+                    <div class="markdown-help">
+                        💡 Supports Markdown: **bold**, *italic*, # Headers, - Lists, `code`, etc. 
+                        Add "## TODO" section with - items to create trackable tasks.
+                    </div>
+                </div>
+                <div class="form-group">
+                    <label for="noteTags">Tags (comma separated)</label>
+                    <input type="text" id="noteTags" placeholder="e.g. work, personal, ideas">
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Note</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="todoModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Complete TODO</h2>
+                <button class="btn-close" onclick="closeTodoModal()">&times;</button>
+            </div>
+            <div class="form-group">
+                <label for="completionComment">Completion Comment (optional)</label>
+                <textarea id="completionComment" placeholder="Add any notes about completing this task..."></textarea>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn-secondary" onclick="closeTodoModal()">Cancel</button>
+                <button type="button" class="btn-primary" onclick="confirmCompleteTodo()">Complete</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = '/api';
+        
+        let notes = [];
+        let todos = [];
+        let currentEditId = null;
+        let currentView = 'notes';
+        let todoFilter = 'active';
+        let pendingTodoId = null;
+
+        // API Functions
+        async function apiRequest(endpoint, options = {}) {
+            try {
+                const response = await fetch(`${API_BASE}${endpoint}`, {
+                    headers: {
+                        'Content-Type': 'application/json',
+                        ...options.headers
+                    },
+                    ...options
+                });
+
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+
+                return await response.json();
+            } catch (error) {
+                console.error('API request failed:', error);
+                showError(`Failed to ${options.method || 'GET'} ${endpoint}: ${error.message}`);
+                throw error;
+            }
+        }
+
+        async function loadNotes() {
+            try {
+                notes = await apiRequest('/notes');
+                renderNotes();
+            } catch (error) {
+                console.error('Failed to load notes:', error);
+            }
+        }
+
+        async function loadTodos() {
+            try {
+                todos = await apiRequest('/todos');
+                if (currentView === 'todos') {
+                    renderTodos();
+                }
+            } catch (error) {
+                console.error('Failed to load todos:', error);
+            }
+        }
+
+        async function createNote(noteData) {
+            return await apiRequest('/notes', {
+                method: 'POST',
+                body: JSON.stringify(noteData)
+            });
+        }
+
+        async function updateNote(id, noteData) {
+            return await apiRequest(`/notes/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify(noteData)
+            });
+        }
+
+        async function deleteNoteApi(id) {
+            return await apiRequest(`/notes/${id}`, {
+                method: 'DELETE'
+            });
+        }
+
+        async function updateTodo(id, todoData) {
+            return await apiRequest(`/todos/${id}`, {
+                method: 'PUT',
+                body: JSON.stringify(todoData)
+            });
+        }
+
+        // UI Functions
+        function showError(message) {
+            const errorState = document.getElementById('errorState');
+            errorState.textContent = message;
+            errorState.style.display = 'block';
+            setTimeout(() => {
+                errorState.style.display = 'none';
+            }, 5000);
+        }
+
+        function showLoading(show = true) {
+            document.getElementById('loadingState').style.display = show ? 'block' : 'none';
+        }
+
+        // Simple markdown parser
+        function parseMarkdown(text) {
+            // Escape HTML
+            let html = text.replace(/[<>&]/g, (c) => ({
+                '<': '&lt;',
+                '>': '&gt;',
+                '&': '&amp;'
+            })[c]);
+            
+            // Headers
+            html = html.replace(/^### (.*$)/gim, '<h3>$1</h3>');
+            html = html.replace(/^## (.*$)/gim, '<h2>$1</h2>');
+            html = html.replace(/^# (.*$)/gim, '<h1>$1</h1>');
+            
+            // Bold
+            html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+            
+            // Italic
+            html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+            
+            // Lists
+            html = html.replace(/^\- (.+)$/gim, '<li>$1</li>');
+            html = html.replace(/(<li>.*<\/li>)/s, '<ul>$1</ul>');
+            
+            // Code blocks
+            html = html.replace(/```(.*?)```/gs, '<pre><code>$1</code></pre>');
+            
+            // Inline code
+            html = html.replace(/`(.+?)`/g, '<code>$1</code>');
+            
+            // Line breaks
+            html = html.replace(/\n/g, '<br>');
+            
+            return html;
+        }
+
+        // Group notes by date
+        function groupNotesByDate(notesToGroup) {
+            const grouped = {};
+            
+            notesToGroup.forEach(note => {
+                const date = new Date(note.date);
+                const dateKey = date.toLocaleDateString('en-US', { 
+                    year: 'numeric', 
+                    month: 'long', 
+                    day: 'numeric' 
+                });
+                
+                if (!grouped[dateKey]) {
+                    grouped[dateKey] = {
+                        date: date,
+                        notes: []
+                    };
+                }
+                
+                grouped[dateKey].notes.push(note);
+            });
+            
+            // Sort groups by date (newest first)
+            return Object.values(grouped).sort((a, b) => b.date - a.date);
+        }
+
+        function renderNotes(searchTerm = '') {
+            const container = document.getElementById('notesContainer');
+            const emptyState = document.getElementById('emptyState');
+            
+            let filteredNotes = notes;
+            
+            // Apply search filter
+            if (searchTerm) {
+                filteredNotes = filteredNotes.filter(note => 
+                    note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    note.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
+                    (note.tags && note.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())))
+                );
+            }
+            
+            // Apply date filter
+            const dateFrom = document.getElementById('dateFrom').value;
+            const dateTo = document.getElementById('dateTo').value;
+            
+            if (dateFrom) {
+                const fromDate = new Date(dateFrom);
+                fromDate.setHours(0, 0, 0, 0);
+                filteredNotes = filteredNotes.filter(note => new Date(note.date) >= fromDate);
+            }
+            
+            if (dateTo) {
+                const toDate = new Date(dateTo);
+                toDate.setHours(23, 59, 59, 999);
+                filteredNotes = filteredNotes.filter(note => new Date(note.date) <= toDate);
+            }
+            
+            if (filteredNotes.length === 0) {
+                container.innerHTML = '';
+                emptyState.style.display = currentView === 'notes' ? 'block' : 'none';
+                return;
+            }
+            
+            emptyState.style.display = 'none';
+            
+            // Group notes by date
+            const groupedNotes = groupNotesByDate(filteredNotes);
+            
+            container.innerHTML = groupedNotes.map(group => {
+                const noteTodos = group.notes.map(note => {
+                    const noteTodoItems = todos.filter(t => t.note_id === note.id);
+                    return {
+                        total: noteTodoItems.length,
+                        completed: noteTodoItems.filter(t => t.completed).length
+                    };
+                });
+                
+                return `
+                    <div class="date-group">
+                        <div class="date-group-header">
+                            ${group.date.toLocaleDateString('en-US', { 
+                                weekday: 'long',
+                                year: 'numeric', 
+                                month: 'long', 
+                                day: 'numeric' 
+                            })}
+                        </div>
+                        <div class="notes-grid">
+                            ${group.notes.map((note, index) => {
+                                const todoStats = noteTodos[index];
+                                return `
+                                    <div class="note-card" onclick="editNote(${note.id})">
+                                        <div class="note-header">
+                                            <h3 class="note-title">
+                                                ${escapeHtml(note.title)}
+                                                ${todoStats.total > 0 ? `
+                                                    <span class="todo-stats">
+                                                        ✓ ${todoStats.completed}/${todoStats.total}
+                                                    </span>
+                                                ` : ''}
+                                            </h3>
+                                            <div class="note-actions">
+                                                <button class="btn-icon" onclick="editNote(${note.id}); event.stopPropagation();">✏️</button>
+                                                <button class="btn-icon btn-delete" onclick="deleteNote(${note.id}); event.stopPropagation();">🗑️</button>
+                                            </div>
+                                        </div>
+                                        <div class="note-content">${parseMarkdown(note.content)}</div>
+                                        ${note.tags && note.tags.length ? `
+                                            <div class="note-tags">
+                                                ${note.tags.map(tag => `<span class="tag">${escapeHtml(tag)}</span>`).join('')}
+                                            </div>
+                                        ` : ''}
+                                        <div class="note-date">${formatDate(note.date)}</div>
+                                    </div>
+                                `;
+                            }).join('')}
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        function renderTodos() {
+            const container = document.getElementById('todosContainer');
+            
+            let filteredTodos = todos;
+            
+            if (todoFilter === 'active') {
+                filteredTodos = todos.filter(t => !t.completed);
+            } else if (todoFilter === 'completed') {
+                filteredTodos = todos.filter(t => t.completed);
+            }
+            
+            if (filteredTodos.length === 0) {
+                container.innerHTML = `
+                    <div style="text-align: center; padding: 40px; color: #999;">
+                        ${todoFilter === 'active' ? 'No active TODOs' : 
+                          todoFilter === 'completed' ? 'No completed TODOs' : 
+                          'No TODOs found'}
+                    </div>
+                `;
+                return;
+            }
+            
+            // Sort todos by date
+            filteredTodos.sort((a, b) => {
+                if (todoFilter === 'completed' && a.completed_date && b.completed_date) {
+                    return new Date(b.completed_date) - new Date(a.completed_date);
+                }
+                return new Date(b.created_date) - new Date(a.created_date);
+            });
+            
+            container.innerHTML = filteredTodos.map(todo => `
+                <div class="todo-item ${todo.completed ? 'completed' : ''}">
+                    <input type="checkbox" 
+                           class="todo-checkbox" 
+                           ${todo.completed ? 'checked' : ''} 
+                           onchange="toggleTodo('${todo.id}', this.checked)"
+                           ${todo.completed ? 'disabled' : ''}>
+                    <div class="todo-content">
+                        <div class="todo-text">${escapeHtml(todo.text)}</div>
+                        <div class="todo-meta">
+                            From: <span class="todo-note-link" onclick="editNote(${todo.note_id})">${escapeHtml(todo.note_title)}</span>
+                            • Added: ${formatDate(todo.created_date)}
+                            ${todo.completed && todo.completed_date ? `• Completed: ${formatDate(todo.completed_date)}` : ''}
+                        </div>
+                        ${todo.completed && todo.completion_comment ? `
+                            <div class="todo-completion">
+                                💬 ${escapeHtml(todo.completion_comment)}
+                            </div>
+                        ` : ''}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function openNewNoteModal() {
+            currentEditId = null;
+            document.getElementById('modalTitle').textContent = 'New Note';
+            document.getElementById('noteForm').reset();
+            document.getElementById('noteModal').classList.add('active');
+        }
+
+        async function editNote(id) {
+            const note = notes.find(n => n.id === id);
+            if (!note) return;
+            
+            currentEditId = id;
+            document.getElementById('modalTitle').textContent = 'Edit Note';
+            document.getElementById('noteTitle').value = note.title;
+            document.getElementById('noteContent').value = note.content;
+            document.getElementById('noteTags').value = note.tags ? note.tags.join(', ') : '';
+            document.getElementById('noteModal').classList.add('active');
+            updatePreview();
+        }
+
+        async function deleteNote(id) {
+            if (confirm('Are you sure you want to delete this note?')) {
+                try {
+                    showLoading(true);
+                    await deleteNoteApi(id);
+                    await loadNotes();
+                    await loadTodos();
+                } catch (error) {
+                    console.error('Failed to delete note:', error);
+                } finally {
+                    showLoading(false);
+                }
+            }
+        }
+
+        function closeModal() {
+            document.getElementById('noteModal').classList.remove('active');
+            currentEditId = null;
+        }
+
+        async function saveNote(event) {
+            event.preventDefault();
+            
+            const title = document.getElementById('noteTitle').value;
+            const content = document.getElementById('noteContent').value;
+            const tags = document.getElementById('noteTags').value
+                .split(',')
+                .map(tag => tag.trim())
+                .filter(tag => tag);
+            
+            try {
+                showLoading(true);
+                
+                if (currentEditId) {
+                    await updateNote(currentEditId, { title, content, tags });
+                } else {
+                    await createNote({ title, content, tags });
+                }
+                
+                await loadNotes();
+                await loadTodos();
+                closeModal();
+            } catch (error) {
+                console.error('Failed to save note:', error);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function updatePreview() {
+            const content = document.getElementById('noteContent').value;
+            document.getElementById('preview').innerHTML = parseMarkdown(content);
+        }
+
+        function switchTab(tab) {
+            currentView = tab;
+            
+            document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            if (tab === 'notes') {
+                document.getElementById('notesView').style.display = 'block';
+                document.getElementById('todosView').style.display = 'none';
+                renderNotes();
+            } else {
+                document.getElementById('notesView').style.display = 'none';
+                document.getElementById('todosView').style.display = 'block';
+                renderTodos();
+            }
+        }
+
+        function filterTodos(filter) {
+            todoFilter = filter;
+            
+            document.querySelectorAll('.todo-filter-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            
+            renderTodos();
+        }
+
+        async function toggleTodo(todoId, completed) {
+            if (completed) {
+                pendingTodoId = todoId;
+                document.getElementById('todoModal').classList.add('active');
+            } else {
+                try {
+                    await updateTodo(todoId, { completed: false, completionComment: null });
+                    await loadTodos();
+                } catch (error) {
+                    console.error('Failed to update todo:', error);
+                }
+            }
+        }
+
+        function closeTodoModal() {
+            document.getElementById('todoModal').classList.remove('active');
+            document.getElementById('completionComment').value = '';
+            pendingTodoId = null;
+        }
+
+        async function confirmCompleteTodo() {
+            try {
+                const completionComment = document.getElementById('completionComment').value;
+                await updateTodo(pendingTodoId, { completed: true, completionComment });
+                await loadTodos();
+                closeTodoModal();
+            } catch (error) {
+                console.error('Failed to complete todo:', error);
+            }
+        }
+
+        function clearDateFilter() {
+            document.getElementById('dateFrom').value = '';
+            document.getElementById('dateTo').value = '';
+            renderNotes();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        function formatDate(dateString) {
+            const date = new Date(dateString);
+            return date.toLocaleDateString('en-US', {
+                year: 'numeric',
+                month: 'short',
+                day: 'numeric',
+                hour: '2-digit',
+                minute: '2-digit'
+            });
+        }
+
+        // Event listeners
+        document.getElementById('searchInput').addEventListener('input', function() {
+            renderNotes(this.value);
+        });
+
+        document.getElementById('dateFrom').addEventListener('change', function() {
+            renderNotes(document.getElementById('searchInput').value);
+        });
+
+        document.getElementById('dateTo').addEventListener('change', function() {
+            renderNotes(document.getElementById('searchInput').value);
+        });
+
+        // Initialize app
+        async function initializeApp() {
+            try {
+                showLoading(true);
+                await loadNotes();
+                await loadTodos();
+            } catch (error) {
+                console.error('Failed to initialize app:', error);
+                showError('Failed to load application data');
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        initializeApp();
+    </script>
+</body>
+</html>
