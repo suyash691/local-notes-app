@@ -1,0 +1,25 @@
+version: '3.8'
+
+services:
+  notes-app:
+    build: .
+    container_name: notes-todo-app
+    ports:
+      - "3000:3000"
+    volumes:
+      # Mount local data directory to container's data directory
+      - ./data:/app/data
+    environment:
+      - NODE_ENV=production
+    restart: unless-stopped
+    networks:
+      - notes-network
+
+networks:
+  notes-network:
+    driver: bridge
+
+# Optional: If you want to use a named volume instead of bind mount
+# volumes:
+#   notes_data:
+#     driver: local

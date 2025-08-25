@@ -90,6 +90,12 @@
             transition: border-color 0.3s;
         }
 
+        .search-hint {
+            font-size: 0.85em;
+            color: #999;
+            margin-top: 5px;
+        }
+
         .search-bar input:focus {
             outline: none;
             border-color: #667eea;
@@ -524,6 +530,30 @@
             font-size: 0.9em;
         }
 
+        .todo-priority {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 12px;
+            font-size: 0.75em;
+            font-weight: 600;
+            margin-left: 8px;
+        }
+
+        .priority-high {
+            background: #ffebee;
+            color: #c62828;
+        }
+
+        .priority-medium {
+            background: #fff3e0;
+            color: #f57c00;
+        }
+
+        .priority-low {
+            background: #e8f5e9;
+            color: #388e3c;
+        }
+
         .markdown-help {
             background: #f5f5f5;
             padding: 10px;
@@ -581,8 +611,9 @@
             <div class="controls">
                 <div class="controls-row">
                     <div class="search-bar">
-                        <input type="text" id="searchInput" placeholder="Search notes...">
+                        <input type="text" id="searchInput" placeholder="Search notes or use 'tag:tagname' for tag search...">
                         <span class="search-icon">🔍</span>
+                        <div class="search-hint">Tip: Use "tag:work" to search for specific tags</div>
                     </div>
                     <div class="date-filter">
                         <input type="date" id="dateFrom" placeholder="From">
@@ -599,7 +630,16 @@
 
         <div id="todosView" style="display: none;">
             <div class="todo-section">
-                <h2 style="margin-bottom: 20px;">📋 TODO Items</h2>
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h2>📋 TODO Items</h2>
+                    <button class="btn-primary" onclick="openNewTodoModal()">+ Add TODO</button>
+                </div>
+                <div style="margin-bottom: 20px;">
+                    <div class="search-bar">
+                        <input type="text" id="todoSearchInput" placeholder="Search TODOs...">
+                        <span class="search-icon">🔍</span>
+                    </div>
+                </div>
                 <div class="todo-filters">
                     <button class="todo-filter-btn active" onclick="filterTodos('active')">Active</button>
                     <button class="todo-filter-btn" onclick="filterTodos('completed')">Completed</button>
@@ -646,7 +686,9 @@
                     </div>
                     <div class="markdown-help">
                         Supports basic Markdown. 
-                        Add a TODO markdown heading with markdown list items to create trackable tasks.
+                        Add a TODO markdown heading with markdown list items to create trackable tasks.<br>
+                        <strong>Priority syntax:</strong> Start TODOs with [H]/[HIGH] or !!! (high), [M]/[MED] or !! (medium), [L]/[LOW] or ! (low)<br>
+                        <strong>Example:</strong> - [H] Important task, - !! Normal task, - ! Low priority task
                     </div>
                 </div>
                 <div class="form-group">
@@ -678,15 +720,79 @@
         </div>
     </div>
 
+    <div class="modal" id="newTodoModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Add New TODO</h2>
+                <button class="btn-close" onclick="closeNewTodoModal()">&times;</button>
+            </div>
+            <form id="newTodoForm" onsubmit="saveNewTodo(event)">
+                <div class="form-group">
+                    <label for="newTodoText">TODO Text</label>
+                    <textarea id="newTodoText" required placeholder="Enter your TODO here..." style="min-height: 100px;"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="newTodoPriority">Priority</label>
+                    <select id="newTodoPriority" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 16px;">
+                        <option value="low">Low</option>
+                        <option value="medium" selected>Medium</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeNewTodoModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Add TODO</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <div class="modal" id="editTodoModal">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title">Edit TODO</h2>
+                <button class="btn-close" onclick="closeEditTodoModal()">&times;</button>
+            </div>
+            <form id="editTodoForm" onsubmit="saveEditedTodo(event)">
+                <div class="form-group">
+                    <label for="editTodoText">TODO Text</label>
+                    <textarea id="editTodoText" required placeholder="Enter your TODO here..." style="min-height: 100px;"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="editTodoPriority">Priority</label>
+                    <select id="editTodoPriority" style="width: 100%; padding: 12px; border: 2px solid #e0e0e0; border-radius: 10px; font-size: 16px;">
+                        <option value="low">Low</option>
+                        <option value="medium">Medium</option>
+                        <option value="high">High</option>
+                    </select>
+                </div>
+                <div id="editTodoWarning" class="form-group" style="display: none;">
+                    <div style="background: #fff3cd; color: #856404; padding: 12px; border-radius: 8px; border: 1px solid #ffeaa7;">
+                        <strong>Note:</strong> This TODO comes from a note. Editing it will update the original note as well.
+                    </div>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeEditTodoModal()">Cancel</button>
+                    <button type="submit" class="btn-primary">Save Changes</button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script>
         const API_BASE = '/api';
         
         let notes = [];
         let todos = [];
+        let standaloneTodos = [];
         let currentEditId = null;
         let currentView = 'notes';
         let todoFilter = 'active';
         let pendingTodoId = null;
+        let pendingTodoIsStandalone = false;
+        let todoSearchTerm = '';
+        let currentEditTodoId = null;
+        let currentEditTodoIsStandalone = false;
 
         // API Functions
         async function apiRequest(endpoint, options = {}) {
@@ -722,7 +828,9 @@
 
         async function loadTodos() {
             try {
-                todos = await apiRequest('/todos');
+                const todoParams = todoSearchTerm ? `?search=${encodeURIComponent(todoSearchTerm)}` : '';
+                todos = await apiRequest(`/todos${todoParams}`);
+                standaloneTodos = await apiRequest(`/standalone-todos${todoParams}`);
                 if (currentView === 'todos') {
                     renderTodos();
                 }
@@ -808,6 +916,16 @@
             return html;
         }
 
+        // Priority order for sorting
+        function getPriorityOrder(priority) {
+            switch (priority) {
+                case 'high': return 3;
+                case 'medium': return 2;
+                case 'low': return 1;
+                default: return 2;
+            }
+        }
+
         // Group notes by date
         function groupNotesByDate(notesToGroup) {
             const grouped = {};
@@ -834,38 +952,33 @@
             return Object.values(grouped).sort((a, b) => b.date - a.date);
         }
 
-        function renderNotes(searchTerm = '') {
+        async function renderNotes(searchTerm = '') {
             const container = document.getElementById('notesContainer');
             const emptyState = document.getElementById('emptyState');
             
-            let filteredNotes = notes;
-            
-            // Apply search filter
-            if (searchTerm) {
-                filteredNotes = filteredNotes.filter(note => 
-                    note.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    note.content.toLowerCase().includes(searchTerm.toLowerCase()) ||
-                    (note.tags && note.tags.some(tag => tag.toLowerCase().includes(searchTerm.toLowerCase())))
-                );
-            }
+            // Load notes with search from server
+            try {
+                const searchParams = searchTerm ? `?search=${encodeURIComponent(searchTerm)}` : '';
+                const filteredNotes = await apiRequest(`/notes${searchParams}`);
             
             // Apply date filter
             const dateFrom = document.getElementById('dateFrom').value;
             const dateTo = document.getElementById('dateTo').value;
             
+            let dateFilteredNotes = filteredNotes;
             if (dateFrom) {
                 const fromDate = new Date(dateFrom);
                 fromDate.setHours(0, 0, 0, 0);
-                filteredNotes = filteredNotes.filter(note => new Date(note.date) >= fromDate);
+                dateFilteredNotes = dateFilteredNotes.filter(note => new Date(note.date) >= fromDate);
             }
             
             if (dateTo) {
                 const toDate = new Date(dateTo);
                 toDate.setHours(23, 59, 59, 999);
-                filteredNotes = filteredNotes.filter(note => new Date(note.date) <= toDate);
+                dateFilteredNotes = dateFilteredNotes.filter(note => new Date(note.date) <= toDate);
             }
             
-            if (filteredNotes.length === 0) {
+            if (dateFilteredNotes.length === 0) {
                 container.innerHTML = '';
                 emptyState.style.display = currentView === 'notes' ? 'block' : 'none';
                 return;
@@ -874,7 +987,7 @@
             emptyState.style.display = 'none';
             
             // Group notes by date
-            const groupedNotes = groupNotesByDate(filteredNotes);
+            const groupedNotes = groupNotesByDate(dateFilteredNotes);
             
             container.innerHTML = groupedNotes.map(group => {
                 const noteTodos = group.notes.map(note => {
@@ -928,17 +1041,22 @@
                     </div>
                 `;
             }).join('');
+            } catch (error) {
+                console.error('Failed to load notes:', error);
+            }
         }
 
         function renderTodos() {
             const container = document.getElementById('todosContainer');
             
-            let filteredTodos = todos;
+            // Combine regular todos and standalone todos
+            let allTodos = [...todos, ...standaloneTodos];
+            let filteredTodos = allTodos;
             
             if (todoFilter === 'active') {
-                filteredTodos = todos.filter(t => !t.completed);
+                filteredTodos = allTodos.filter(t => !t.completed);
             } else if (todoFilter === 'completed') {
-                filteredTodos = todos.filter(t => t.completed);
+                filteredTodos = allTodos.filter(t => t.completed);
             }
             
             if (filteredTodos.length === 0) {
@@ -952,11 +1070,18 @@
                 return;
             }
             
-            // Sort todos by date
+            // Sort todos by priority, then by date
             filteredTodos.sort((a, b) => {
                 if (todoFilter === 'completed' && a.completed_date && b.completed_date) {
                     return new Date(b.completed_date) - new Date(a.completed_date);
                 }
+                
+                // Sort by priority first (high to low), then by date
+                const priorityDiff = getPriorityOrder(b.priority || 'medium') - getPriorityOrder(a.priority || 'medium');
+                if (priorityDiff !== 0) {
+                    return priorityDiff;
+                }
+                
                 return new Date(b.created_date) - new Date(a.created_date);
             });
             
@@ -965,14 +1090,28 @@
                     <input type="checkbox" 
                            class="todo-checkbox" 
                            ${todo.completed ? 'checked' : ''} 
-                           onchange="toggleTodo('${todo.id}', this.checked)"
+                           onchange="toggleTodo('${todo.id}', this.checked, ${todo.note_id ? 'false' : 'true'})"
                            ${todo.completed ? 'disabled' : ''}>
                     <div class="todo-content">
-                        <div class="todo-text">${escapeHtml(todo.text)}</div>
+                        <div class="todo-text">
+                            ${escapeHtml(todo.text)}
+                            <span class="todo-priority priority-${todo.priority || 'medium'}">
+                                ${(todo.priority || 'medium').toUpperCase()}
+                            </span>
+                        </div>
                         <div class="todo-meta">
-                            From: <span class="todo-note-link" onclick="editNote(${todo.note_id})">${escapeHtml(todo.note_title)}</span>
+                            ${todo.note_id ? 
+                                `From: <span class="todo-note-link" onclick="editNote(${todo.note_id})">${escapeHtml(todo.note_title)}</span>` :
+                                'Standalone TODO'
+                            }
                             • Added: ${formatDate(todo.created_date)}
                             ${todo.completed && todo.completed_date ? `• Completed: ${formatDate(todo.completed_date)}` : ''}
+                            ${!todo.completed ? `
+                                <button class="btn-icon" onclick="editTodo('${todo.id}', ${todo.note_id ? 'false' : 'true'}); event.stopPropagation();" style="margin-left: 10px; font-size: 14px;">✏️</button>
+                            ` : ''}
+                            ${!todo.completed && !todo.note_id ? `
+                                <button class="btn-icon btn-delete" onclick="deleteStandaloneTodo('${todo.id}'); event.stopPropagation();" style="margin-left: 10px; font-size: 14px;">🗑️</button>
+                            ` : ''}
                         </div>
                         ${todo.completed && todo.completion_comment ? `
                             <div class="todo-completion">
@@ -1084,13 +1223,18 @@
             renderTodos();
         }
 
-        async function toggleTodo(todoId, completed) {
+        async function toggleTodo(todoId, completed, isStandalone = false) {
             if (completed) {
                 pendingTodoId = todoId;
+                pendingTodoIsStandalone = isStandalone;
                 document.getElementById('todoModal').classList.add('active');
             } else {
                 try {
-                    await updateTodo(todoId, { completed: false, completionComment: null });
+                    const endpoint = isStandalone ? `/standalone-todos/${todoId}` : `/todos/${todoId}`;
+                    await apiRequest(endpoint, {
+                        method: 'PUT',
+                        body: JSON.stringify({ completed: false, completionComment: null })
+                    });
                     await loadTodos();
                 } catch (error) {
                     console.error('Failed to update todo:', error);
@@ -1102,12 +1246,140 @@
             document.getElementById('todoModal').classList.remove('active');
             document.getElementById('completionComment').value = '';
             pendingTodoId = null;
+            pendingTodoIsStandalone = false;
+        }
+
+        function openNewTodoModal() {
+            document.getElementById('newTodoModal').classList.add('active');
+        }
+
+        function closeNewTodoModal() {
+            document.getElementById('newTodoModal').classList.remove('active');
+            document.getElementById('newTodoForm').reset();
+        }
+
+        async function saveNewTodo(event) {
+            event.preventDefault();
+            
+            const text = document.getElementById('newTodoText').value;
+            const priority = document.getElementById('newTodoPriority').value;
+            
+            try {
+                showLoading(true);
+                await apiRequest('/standalone-todos', {
+                    method: 'POST',
+                    body: JSON.stringify({ text, priority })
+                });
+                await loadTodos();
+                closeNewTodoModal();
+            } catch (error) {
+                console.error('Failed to create todo:', error);
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        async function deleteStandaloneTodo(todoId) {
+            if (confirm('Are you sure you want to delete this TODO?')) {
+                try {
+                    showLoading(true);
+                    await apiRequest(`/standalone-todos/${todoId}`, {
+                        method: 'DELETE'
+                    });
+                    await loadTodos();
+                } catch (error) {
+                    console.error('Failed to delete todo:', error);
+                } finally {
+                    showLoading(false);
+                }
+            }
+        }
+
+        async function editTodo(todoId, isStandalone = false) {
+            currentEditTodoId = todoId;
+            currentEditTodoIsStandalone = isStandalone;
+            
+            // Find the todo to edit
+            const allTodos = [...todos, ...standaloneTodos];
+            const todo = allTodos.find(t => t.id === todoId);
+            
+            if (!todo) {
+                console.error('Todo not found');
+                return;
+            }
+            
+            // Populate the edit form
+            document.getElementById('editTodoText').value = todo.text;
+            document.getElementById('editTodoPriority').value = todo.priority || 'medium';
+            
+            // Show warning for note-based TODOs
+            const warning = document.getElementById('editTodoWarning');
+            if (todo.note_id) {
+                warning.style.display = 'block';
+            } else {
+                warning.style.display = 'none';
+            }
+            
+            // Open the modal
+            document.getElementById('editTodoModal').classList.add('active');
+        }
+
+        function closeEditTodoModal() {
+            document.getElementById('editTodoModal').classList.remove('active');
+            document.getElementById('editTodoForm').reset();
+            currentEditTodoId = null;
+            currentEditTodoIsStandalone = false;
+        }
+
+        async function saveEditedTodo(event) {
+            event.preventDefault();
+            
+            const newText = document.getElementById('editTodoText').value;
+            const newPriority = document.getElementById('editTodoPriority').value;
+            
+            try {
+                showLoading(true);
+                
+                if (currentEditTodoIsStandalone) {
+                    // Update standalone todo
+                    await apiRequest(`/standalone-todos/${currentEditTodoId}`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ 
+                            text: newText,
+                            priority: newPriority 
+                        })
+                    });
+                } else {
+                    // Update note-based todo (this will also update the source note)
+                    await apiRequest(`/todos/${currentEditTodoId}/edit`, {
+                        method: 'PUT',
+                        body: JSON.stringify({ 
+                            text: newText,
+                            priority: newPriority 
+                        })
+                    });
+                    // Reload notes as well since the source note might have changed
+                    notes = await apiRequest('/notes');
+                    renderNotes();
+                }
+                
+                await loadTodos();
+                closeEditTodoModal();
+            } catch (error) {
+                console.error('Failed to update todo:', error);
+            } finally {
+                showLoading(false);
+            }
         }
 
         async function confirmCompleteTodo() {
             try {
                 const completionComment = document.getElementById('completionComment').value;
-                await updateTodo(pendingTodoId, { completed: true, completionComment });
+                const endpoint = pendingTodoIsStandalone ? `/standalone-todos/${pendingTodoId}` : `/todos/${pendingTodoId}`;
+                await apiRequest(endpoint, {
+                    method: 'PUT',
+                    body: JSON.stringify({ completed: true, completionComment })
+                });
                 await loadTodos();
                 closeTodoModal();
             } catch (error) {
@@ -1118,6 +1390,7 @@
         function clearDateFilter() {
             document.getElementById('dateFrom').value = '';
             document.getElementById('dateTo').value = '';
+            document.getElementById('searchInput').value = '';
             renderNotes();
         }
 
@@ -1141,6 +1414,11 @@
         // Event listeners
         document.getElementById('searchInput').addEventListener('input', function() {
             renderNotes(this.value);
+        });
+        
+        document.getElementById('todoSearchInput').addEventListener('input', function() {
+            todoSearchTerm = this.value;
+            loadTodos();
         });
 
         document.getElementById('dateFrom').addEventListener('change', function() {
