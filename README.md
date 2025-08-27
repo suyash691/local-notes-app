@@ -1,5 +1,6 @@
 # Notes & TODOs App with SQLite
 
+<<<<<<< HEAD
 A comprehensive notes and TODO tracking application with SQLite database backend and Docker support.
 
 ## Features
@@ -30,12 +31,28 @@ A comprehensive notes and TODO tracking application with SQLite database backend
    # Create data directory for persistence (optional - will be created automatically)
    mkdir -p ./data
    ```
+=======
+A notes and TODO tracking application with SQLite database backend. Local use only.
+
+## Features
+
+- 📝 Create, edit, and delete notes with Markdown support
+- ✅ Automatic TODO extraction from notes (under `TODO` markdown headings)
+- 🗄️ SQLite database for persistent data storage
+- 🔍 Search and filter notes by content, tags, and date
+- 📋 TODO management with completion tracking
+- 📊 TODO progress tracking per note
+>>>>>>> 0e6ae8659967e1ed7ba5e2e65f5be31047014a1c
 
 2. **Access the application:**
    Open `http://localhost:3000` in your browser
 
+<<<<<<< HEAD
 3. **Data persistence:**
    Your database will be stored in `./data/notes.db` on your local machine
+=======
+- Node.js
+>>>>>>> 0e6ae8659967e1ed7ba5e2e65f5be31047014a1c
 
 ### Option 2: Local Development
 
@@ -54,6 +71,7 @@ A comprehensive notes and TODO tracking application with SQLite database backend
 
 ## How it Works
 
+<<<<<<< HEAD
 ## Docker Commands
 
 ```bash
@@ -91,6 +109,9 @@ When creating TODOs in markdown notes, you can specify priority using these form
 - `- ! Low priority task`
 
 ### Example Note with TODOs and Priorities
+=======
+### Example Note with TODOs
+>>>>>>> 0e6ae8659967e1ed7ba5e2e65f5be31047014a1c
 
 ```markdown
 # My Project Notes
@@ -131,6 +152,7 @@ The application uses SQLite with automatic migrations:
 - `POST /api/notes` - Create new note
 - `PUT /api/notes/:id` - Update note
 - `DELETE /api/notes/:id` - Delete note
+<<<<<<< HEAD
 
 ### TODOs
 - `GET /api/todos` - Get all note-based todos (supports `?search=` parameter)
@@ -148,3 +170,7 @@ The application uses SQLite with automatic migrations:
 - **General search**: Search notes by title and content
 - **Tag search**: Use `tag:work` to search for specific tags
 - **TODO search**: Search across all TODO text and source note titles
+=======
+- `GET /api/todos` - Get all todos
+- `PUT /api/todos/:id` - Update todo status
+>>>>>>> 0e6ae8659967e1ed7ba5e2e65f5be31047014a1c
