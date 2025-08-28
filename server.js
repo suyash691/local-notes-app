@@ -58,6 +58,11 @@ async function initializeDatabase() {
     try {
         const migrationManager = new MigrationManager(db);
         await migrationManager.runMigrations();
+        
+        // One-time fix: Inherit tags for existing TODOs that don't have tags yet
+        setTimeout(() => {
+            fixExistingTodoTags();
+        }, 1000);
     } catch (error) {
         console.error('Migration failed:', error);
     }
@@ -221,6 +226,140 @@ function updateTodoInNoteContent(content, todoId, newText, newPriority) {
     return updatedLines.join('\n');
 }
 
+// Tag helper functions
+async function getOrCreateTag(tagName) {
+    return new Promise((resolve, reject) => {
+        // Try to get existing tag
+        db.get('SELECT id FROM tags WHERE name = ?', [tagName], (err, row) => {
+            if (err) {
+                reject(err);
+                return;
+            }
+            
+            if (row) {
+                resolve(row.id);
+            } else {
+                // Create new tag
+                db.run(
+                    'INSERT INTO tags (name, created_date) VALUES (?, ?)',
+                    [tagName, new Date().toISOString()],
+                    function(err) {
+                        if (err) {
+                            reject(err);
+                        } else {
+                            resolve(this.lastID);
+                        }
+                    }
+                );
+            }
+        });
+    });
+}
+
+async function updateNoteTags(noteId, tagNames) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            // Delete existing note_tags
+            db.run('DELETE FROM note_tags WHERE note_id = ?', [noteId], async (err) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                
+                if (!tagNames || tagNames.length === 0) {
+                    resolve();
+                    return;
+                }
+                
+                // Add new tags
+                for (const tagName of tagNames) {
+                    const tagId = await getOrCreateTag(tagName);
+                    await new Promise((resolveTag, rejectTag) => {
+                        db.run(
+                            'INSERT OR IGNORE INTO note_tags (note_id, tag_id) VALUES (?, ?)',
+                            [noteId, tagId],
+                            (err) => {
+                                if (err) rejectTag(err);
+                                else resolveTag();
+                            }
+                        );
+                    });
+                }
+                resolve();
+            });
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+async function updateTodoTags(todoId, tagNames) {
+    return new Promise(async (resolve, reject) => {
+        try {
+            // Delete existing todo_tags
+            db.run('DELETE FROM todo_tags WHERE todo_id = ?', [todoId], async (err) => {
+                if (err) {
+                    reject(err);
+                    return;
+                }
+                
+                if (!tagNames || tagNames.length === 0) {
+                    resolve();
+                    return;
+                }
+                
+                // Add new tags
+                for (const tagName of tagNames) {
+                    const tagId = await getOrCreateTag(tagName);
+                    await new Promise((resolveTag, rejectTag) => {
+                        db.run(
+                            'INSERT OR IGNORE INTO todo_tags (todo_id, tag_id) VALUES (?, ?)',
+                            [todoId, tagId],
+                            (err) => {
+                                if (err) rejectTag(err);
+                                else resolveTag();
+                            }
+                        );
+                    });
+                }
+                resolve();
+            });
+        } catch (error) {
+            reject(error);
+        }
+    });
+}
+
+async function inheritTagsFromParentNote(todoId, noteId) {
+    return new Promise((resolve, reject) => {
+        if (!noteId) {
+            resolve(); // Standalone todo, no inheritance
+            return;
+        }
+        
+        // Get parent note tags
+        db.all(`
+            SELECT t.name 
+            FROM tags t 
+            JOIN note_tags nt ON t.id = nt.tag_id 
+            WHERE nt.note_id = ?
+        `, [noteId], async (err, rows) => {
+            if (err) {
+                reject(err);
+                return;
+            }
+            
+            const tagNames = rows.map(row => row.name);
+            try {
+                await updateTodoTags(todoId, tagNames);
+                resolve();
+            } catch (error) {
+                reject(error);
+            }
+        });
+    });
+}
+
 // Save todos to database - preserving completed status
 function extractAndSaveTodos(noteId, content, noteTitle) {
     // First, get existing todos for this note to preserve completion status
@@ -254,16 +393,63 @@ function extractAndSaveTodos(noteId, content, noteTitle) {
                     todo.completed = existingTodo.completed;
                     todo.completedDate = existingTodo.completed_date;
                     todo.completionComment = existingTodo.completion_comment;
-                    todo.priority = existingTodo.priority || 'medium';
+                    // Use priority from note content (already extracted) rather than from existing todo
+                    // This allows priority changes made directly in note content to be reflected
                 }
                 
                 db.run(
                     'INSERT INTO todos (id, note_id, note_title, text, completed, created_date, completed_date, completion_comment, priority) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
-                    [todo.id, todo.noteId, todo.noteTitle, todo.text, todo.completed, todo.createdDate, todo.completedDate, todo.completionComment, todo.priority || 'medium']
+                    [todo.id, todo.noteId, todo.noteTitle, todo.text, todo.completed, todo.createdDate, todo.completedDate, todo.completionComment, todo.priority || 'medium'],
+                    function(err) {
+                        if (!err) {
+                            // Inherit tags from parent note
+                            inheritTagsFromParentNote(todo.id, noteId).catch(console.error);
+                        }
+                    }
                 );
             });
         });
     });
+}
+
+// One-time function to inherit tags for existing TODOs
+async function fixExistingTodoTags() {
+    try {
+        console.log('Checking for TODOs that need tag inheritance...');
+        
+        // Get all TODOs that are linked to notes but don't have tags
+        db.all(`
+            SELECT t.* FROM todos t 
+            WHERE t.note_id IS NOT NULL 
+            AND t.id NOT IN (SELECT todo_id FROM todo_tags)
+        `, async (err, todos) => {
+            if (err) {
+                console.error('Error checking existing todos:', err);
+                return;
+            }
+            
+            if (todos.length === 0) {
+                console.log('No existing TODOs need tag inheritance.');
+                return;
+            }
+            
+            console.log(`Found ${todos.length} TODOs that need tag inheritance.`);
+            
+            let processed = 0;
+            for (const todo of todos) {
+                try {
+                    await inheritTagsFromParentNote(todo.id, todo.note_id);
+                    processed++;
+                } catch (error) {
+                    console.error(`Failed to inherit tags for TODO ${todo.id}:`, error);
+                }
+            }
+            
+            console.log(`Successfully inherited tags for ${processed} TODOs.`);
+        });
+    } catch (error) {
+        console.error('Error in fixExistingTodoTags:', error);
+    }
 }
 
 // API Routes
@@ -271,24 +457,30 @@ function extractAndSaveTodos(noteId, content, noteTitle) {
 // Get all notes with search support
 app.get('/api/notes', (req, res) => {
     const { search } = req.query;
-    let query = 'SELECT * FROM notes';
+    let query = `
+        SELECT n.*, 
+               GROUP_CONCAT(t.name) as tag_names
+        FROM notes n
+        LEFT JOIN note_tags nt ON n.id = nt.note_id
+        LEFT JOIN tags t ON nt.tag_id = t.id
+    `;
     let params = [];
     
     if (search) {
         if (search.startsWith('tag:')) {
             // Tag-specific search
             const tagSearch = search.substring(4).trim();
-            query += ' WHERE tags LIKE ?';
-            params = [`%"${tagSearch}"%`];
+            query += ' WHERE t.name LIKE ?';
+            params = [`%${tagSearch}%`];
         } else {
             // General search
-            query += ' WHERE title LIKE ? OR content LIKE ?';
+            query += ' WHERE n.title LIKE ? OR n.content LIKE ?';
             const searchParam = `%${search}%`;
             params = [searchParam, searchParam];
         }
     }
     
-    query += ' ORDER BY date DESC';
+    query += ' GROUP BY n.id ORDER BY n.date DESC';
     
     db.all(query, params, (err, rows) => {
         if (err) {
@@ -296,10 +488,10 @@ app.get('/api/notes', (req, res) => {
             return;
         }
         
-        // Parse tags back to array
+        // Parse tags from comma-separated string
         const notes = rows.map(note => ({
             ...note,
-            tags: note.tags ? JSON.parse(note.tags) : []
+            tags: note.tag_names ? note.tag_names.split(',').filter(tag => tag.trim()) : []
         }));
         
         res.json(notes);
@@ -310,7 +502,17 @@ app.get('/api/notes', (req, res) => {
 app.get('/api/notes/:id', (req, res) => {
     const { id } = req.params;
     
-    db.get('SELECT * FROM notes WHERE id = ?', [id], (err, row) => {
+    const query = `
+        SELECT n.*, 
+               GROUP_CONCAT(t.name) as tag_names
+        FROM notes n
+        LEFT JOIN note_tags nt ON n.id = nt.note_id
+        LEFT JOIN tags t ON nt.tag_id = t.id
+        WHERE n.id = ?
+        GROUP BY n.id
+    `;
+    
+    db.get(query, [id], (err, row) => {
         if (err) {
             res.status(500).json({ error: err.message });
             return;
@@ -323,7 +525,7 @@ app.get('/api/notes/:id', (req, res) => {
         
         const note = {
             ...row,
-            tags: row.tags ? JSON.parse(row.tags) : []
+            tags: row.tag_names ? row.tag_names.split(',').filter(tag => tag.trim()) : []
         };
         
         res.json(note);
@@ -331,15 +533,14 @@ app.get('/api/notes/:id', (req, res) => {
 });
 
 // Create new note
-app.post('/api/notes', (req, res) => {
+app.post('/api/notes', async (req, res) => {
     const { title, content, tags } = req.body;
     const date = new Date().toISOString();
-    const tagsJson = JSON.stringify(tags || []);
     
     db.run(
-        'INSERT INTO notes (title, content, tags, date) VALUES (?, ?, ?, ?)',
-        [title, content, tagsJson, date],
-        function(err) {
+        'INSERT INTO notes (title, content, date) VALUES (?, ?, ?)',
+        [title, content, date],
+        async function(err) {
             if (err) {
                 res.status(500).json({ error: err.message });
                 return;
@@ -347,30 +548,37 @@ app.post('/api/notes', (req, res) => {
             
             const noteId = this.lastID;
             
-            // Extract and save todos
-            extractAndSaveTodos(noteId, content, title);
-            
-            res.json({
-                id: noteId,
-                title,
-                content,
-                tags: tags || [],
-                date
-            });
+            try {
+                // Update tags using new normalized system
+                await updateNoteTags(noteId, tags || []);
+                
+                // Extract and save todos
+                extractAndSaveTodos(noteId, content, title);
+                
+                res.json({
+                    id: noteId,
+                    title,
+                    content,
+                    tags: tags || [],
+                    date
+                });
+            } catch (error) {
+                console.error('Error updating tags:', error);
+                res.status(500).json({ error: 'Failed to update tags' });
+            }
         }
     );
 });
 
 // Update note
-app.put('/api/notes/:id', (req, res) => {
+app.put('/api/notes/:id', async (req, res) => {
     const { id } = req.params;
     const { title, content, tags } = req.body;
-    const tagsJson = JSON.stringify(tags || []);
     
     db.run(
-        'UPDATE notes SET title = ?, content = ?, tags = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
-        [title, content, tagsJson, id],
-        function(err) {
+        'UPDATE notes SET title = ?, content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+        [title, content, id],
+        async function(err) {
             if (err) {
                 res.status(500).json({ error: err.message });
                 return;
@@ -381,23 +589,41 @@ app.put('/api/notes/:id', (req, res) => {
                 return;
             }
             
-            // Extract and save todos
-            extractAndSaveTodos(id, content, title);
-            
-            // Get updated note
-            db.get('SELECT * FROM notes WHERE id = ?', [id], (err, row) => {
-                if (err) {
-                    res.status(500).json({ error: err.message });
-                    return;
-                }
+            try {
+                // Update tags using new normalized system
+                await updateNoteTags(id, tags || []);
                 
-                const note = {
-                    ...row,
-                    tags: row.tags ? JSON.parse(row.tags) : []
-                };
+                // Extract and save todos
+                extractAndSaveTodos(id, content, title);
                 
-                res.json(note);
-            });
+                // Get updated note with tags
+                const query = `
+                    SELECT n.*, 
+                           GROUP_CONCAT(t.name) as tag_names
+                    FROM notes n
+                    LEFT JOIN note_tags nt ON n.id = nt.note_id
+                    LEFT JOIN tags t ON nt.tag_id = t.id
+                    WHERE n.id = ?
+                    GROUP BY n.id
+                `;
+                
+                db.get(query, [id], (err, row) => {
+                    if (err) {
+                        res.status(500).json({ error: err.message });
+                        return;
+                    }
+                    
+                    const note = {
+                        ...row,
+                        tags: row.tag_names ? row.tag_names.split(',').filter(tag => tag.trim()) : []
+                    };
+                    
+                    res.json(note);
+                });
+            } catch (error) {
+                console.error('Error updating tags:', error);
+                res.status(500).json({ error: 'Failed to update tags' });
+            }
         }
     );
 });
@@ -406,178 +632,262 @@ app.put('/api/notes/:id', (req, res) => {
 app.delete('/api/notes/:id', (req, res) => {
     const { id } = req.params;
     
-    db.run('DELETE FROM notes WHERE id = ?', [id], function(err) {
+    // First delete associated todos, then delete the note
+    db.run('DELETE FROM todos WHERE note_id = ?', [id], (err) => {
         if (err) {
-            res.status(500).json({ error: err.message });
-            return;
+            console.error('Error deleting associated todos:', err);
+            // Continue with note deletion even if todo deletion fails
         }
         
-        if (this.changes === 0) {
-            res.status(404).json({ error: 'Note not found' });
-            return;
-        }
-        
-        res.json({ message: 'Note deleted successfully' });
-    });
-});
-
-// Get all todos with search support
-app.get('/api/todos', (req, res) => {
-    const { search } = req.query;
-    let query = 'SELECT * FROM todos';
-    let params = [];
-    
-    if (search) {
-        query += ' WHERE text LIKE ? OR note_title LIKE ?';
-        const searchParam = `%${search}%`;
-        params = [searchParam, searchParam];
-    }
-    
-    query += ' ORDER BY completed ASC, priority DESC, created_date DESC';
-    
-    db.all(query, params, (err, rows) => {
-        if (err) {
-            res.status(500).json({ error: err.message });
-            return;
-        }
-        
-        // Convert SQLite boolean to JS boolean
-        const todos = rows.map(todo => ({
-            ...todo,
-            completed: Boolean(todo.completed)
-        }));
-        
-        res.json(todos);
-    });
-});
-
-// Get all standalone todos
-app.get('/api/standalone-todos', (req, res) => {
-    const { search } = req.query;
-    let query = 'SELECT * FROM standalone_todos';
-    let params = [];
-    
-    if (search) {
-        query += ' WHERE text LIKE ?';
-        params = [`%${search}%`];
-    }
-    
-    query += ' ORDER BY completed ASC, priority DESC, created_date DESC';
-    
-    db.all(query, params, (err, rows) => {
-        if (err) {
-            res.status(500).json({ error: err.message });
-            return;
-        }
-        
-        // Convert SQLite boolean to JS boolean
-        const todos = rows.map(todo => ({
-            ...todo,
-            completed: Boolean(todo.completed)
-        }));
-        
-        res.json(todos);
-    });
-});
-
-// Create standalone todo
-app.post('/api/standalone-todos', (req, res) => {
-    const { text, priority = 'medium' } = req.body;
-    const id = `standalone-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    const createdDate = new Date().toISOString();
-    
-    db.run(
-        'INSERT INTO standalone_todos (id, text, priority, completed, created_date) VALUES (?, ?, ?, ?, ?)',
-        [id, text, priority, false, createdDate],
-        function(err) {
+        db.run('DELETE FROM notes WHERE id = ?', [id], function(err) {
             if (err) {
                 res.status(500).json({ error: err.message });
                 return;
             }
             
-            res.json({
-                id,
-                text,
-                priority,
-                completed: false,
-                created_date: createdDate,
-                completed_date: null,
-                completion_comment: null
-            });
-        }
-    );
-});
-
-// Update standalone todo
-app.put('/api/standalone-todos/:id', (req, res) => {
-    const { id } = req.params;
-    const { completed, completionComment, priority, text } = req.body;
-    const completedDate = completed !== undefined && completed ? new Date().toISOString() : null;
-    
-    // Build dynamic query based on provided fields
-    let setParts = [];
-    let params = [];
-    
-    if (completed !== undefined) {
-        setParts.push('completed = ?');
-        params.push(completed);
-        setParts.push('completed_date = ?');
-        params.push(completedDate);
-        setParts.push('completion_comment = ?');
-        params.push(completionComment || null);
-    }
-    
-    if (priority !== undefined) {
-        setParts.push('priority = ?');
-        params.push(priority);
-    }
-    
-    if (text !== undefined) {
-        setParts.push('text = ?');
-        params.push(text);
-    }
-    
-    if (setParts.length === 0) {
-        res.status(400).json({ error: 'No fields to update' });
-        return;
-    }
-    
-    const query = `UPDATE standalone_todos SET ${setParts.join(', ')} WHERE id = ?`;
-    params.push(id);
-    
-    db.run(query, params, function(err) {
-        if (err) {
-            res.status(500).json({ error: err.message });
-            return;
-        }
-        
-        if (this.changes === 0) {
-            res.status(404).json({ error: 'Todo not found' });
-            return;
-        }
-        
-        // Get updated todo
-        db.get('SELECT * FROM standalone_todos WHERE id = ?', [id], (err, row) => {
-            if (err) {
-                res.status(500).json({ error: err.message });
+            if (this.changes === 0) {
+                res.status(404).json({ error: 'Note not found' });
                 return;
             }
             
-            const todo = {
-                ...row,
-                completed: Boolean(row.completed)
-            };
-            
-            res.json(todo);
+            res.json({ message: 'Note deleted successfully' });
         });
     });
 });
 
-// Delete standalone todo
-app.delete('/api/standalone-todos/:id', (req, res) => {
+// Get all todos with search support and optional filtering
+app.get('/api/todos', (req, res) => {
+    const { search, standalone, tag } = req.query;
+    let query = `
+        SELECT t.*, 
+               GROUP_CONCAT(tags.name) as tag_names
+        FROM todos t
+        LEFT JOIN todo_tags tt ON t.id = tt.todo_id
+        LEFT JOIN tags ON tt.tag_id = tags.id
+    `;
+    let params = [];
+    let conditions = [];
+    
+    // Filter for standalone todos only
+    if (standalone === 'true') {
+        conditions.push('t.note_id IS NULL');
+    } else if (standalone === 'false') {
+        conditions.push('t.note_id IS NOT NULL');
+    }
+    
+    // Handle search parameter (including tag: prefix)
+    if (search) {
+        if (search.startsWith('tag:')) {
+            // Tag-specific search - use subquery to find todos with specific tags
+            const tagSearch = search.substring(4).trim();
+            conditions.push(`t.id IN (
+                SELECT tt.todo_id 
+                FROM todo_tags tt 
+                JOIN tags tag_search ON tt.tag_id = tag_search.id 
+                WHERE tag_search.name LIKE ?
+            )`);
+            params.push(`%${tagSearch}%`);
+        } else {
+            // General search
+            conditions.push('(t.text LIKE ? OR t.note_title LIKE ?)');
+            const searchParam = `%${search}%`;
+            params.push(searchParam, searchParam);
+        }
+    }
+    
+    // Filter by tag (legacy parameter - can be removed later)
+    if (tag) {
+        conditions.push('tags.name LIKE ?');
+        params.push(`%${tag}%`);
+    }
+    
+    if (conditions.length > 0) {
+        query += ' WHERE ' + conditions.join(' AND ');
+    }
+    
+    query += ' GROUP BY t.id ORDER BY t.completed ASC, t.priority DESC, t.created_date DESC';
+    
+    db.all(query, params, (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        
+        // Convert SQLite boolean to JS boolean and parse tags
+        const todos = rows.map(todo => ({
+            ...todo,
+            completed: Boolean(todo.completed),
+            tags: todo.tag_names ? todo.tag_names.split(',').filter(tag => tag.trim()) : []
+        }));
+        
+        res.json(todos);
+    });
+});
+
+// Create new todo (standalone or note-linked)
+app.post('/api/todos', async (req, res) => {
+    const { text, priority = 'medium', note_id = null, note_title = null, tags = [] } = req.body;
+    const id = note_id ? `${note_id}-${Date.now()}` : `standalone-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    const createdDate = new Date().toISOString();
+    
+    db.run(
+        'INSERT INTO todos (id, note_id, note_title, text, priority, completed, created_date) VALUES (?, ?, ?, ?, ?, ?, ?)',
+        [id, note_id, note_title, text, priority, false, createdDate],
+        async function(err) {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            
+            try {
+                if (note_id) {
+                    // Inherit tags from parent note
+                    await inheritTagsFromParentNote(id, note_id);
+                } else {
+                    // Use provided tags for standalone todo
+                    await updateTodoTags(id, tags);
+                }
+                
+                res.json({
+                    id,
+                    note_id,
+                    note_title,
+                    text,
+                    priority,
+                    completed: false,
+                    created_date: createdDate,
+                    completed_date: null,
+                    completion_comment: null,
+                    tags: note_id ? [] : tags // Tags will be inherited for note-based todos
+                });
+            } catch (error) {
+                console.error('Error updating todo tags:', error);
+                // Return the todo even if tag update fails
+                res.json({
+                    id,
+                    note_id,
+                    note_title,
+                    text,
+                    priority,
+                    completed: false,
+                    created_date: createdDate,
+                    completed_date: null,
+                    completion_comment: null,
+                    tags: []
+                });
+            }
+        }
+    );
+});
+
+// Get all available tags
+app.get('/api/tags', (req, res) => {
+    db.all('SELECT * FROM tags ORDER BY name ASC', (err, rows) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        res.json(rows);
+    });
+});
+
+// Update todo completion status and priority
+app.put('/api/todos/:id', (req, res) => {
+    const { id } = req.params;
+    const { completed, completionComment, priority } = req.body;
+    const completedDate = completed ? new Date().toISOString() : null;
+    
+    // First get the current todo to check if it's linked to a note
+    db.get('SELECT * FROM todos WHERE id = ?', [id], (err, currentTodo) => {
+        if (err) {
+            res.status(500).json({ error: err.message });
+            return;
+        }
+        
+        if (!currentTodo) {
+            res.status(404).json({ error: 'Todo not found' });
+            return;
+        }
+        
+        let query = 'UPDATE todos SET completed = ?, completed_date = ?, completion_comment = ?';
+        let params = [completed, completedDate, completionComment || null];
+        
+        if (priority !== undefined) {
+            query += ', priority = ?';
+            params.push(priority);
+        }
+        
+        query += ' WHERE id = ?';
+        params.push(id);
+        
+        db.run(query, params, function(err) {
+            if (err) {
+                res.status(500).json({ error: err.message });
+                return;
+            }
+            
+            if (this.changes === 0) {
+                res.status(404).json({ error: 'Todo not found' });
+                return;
+            }
+            
+            // If this todo is linked to a note and priority was updated, update the note content
+            if (currentTodo.note_id && priority !== undefined && priority !== currentTodo.priority) {
+                db.get('SELECT * FROM notes WHERE id = ?', [currentTodo.note_id], (err, note) => {
+                    if (err) {
+                        console.error('Error getting note for priority update:', err);
+                        // Continue with response even if note update fails
+                        sendResponse();
+                        return;
+                    }
+                    
+                    if (note) {
+                        // Update the note content with new priority
+                        const updatedContent = updateTodoInNoteContent(note.content, id, currentTodo.text, priority);
+                        
+                        db.run(
+                            'UPDATE notes SET content = ?, updated_at = CURRENT_TIMESTAMP WHERE id = ?',
+                            [updatedContent, note.id],
+                            function(err) {
+                                if (err) {
+                                    console.error('Error updating note content:', err);
+                                }
+                                sendResponse();
+                            }
+                        );
+                    } else {
+                        sendResponse();
+                    }
+                });
+            } else {
+                sendResponse();
+            }
+            
+            function sendResponse() {
+                // Get updated todo
+                db.get('SELECT * FROM todos WHERE id = ?', [id], (err, row) => {
+                    if (err) {
+                        res.status(500).json({ error: err.message });
+                        return;
+                    }
+                    
+                    const todo = {
+                        ...row,
+                        completed: Boolean(row.completed)
+                    };
+                    
+                    res.json(todo);
+                });
+            }
+        });
+    });
+});
+
+// Delete todo (standalone or note-linked)
+app.delete('/api/todos/:id', (req, res) => {
     const { id } = req.params;
     
-    db.run('DELETE FROM standalone_todos WHERE id = ?', [id], function(err) {
+    db.run('DELETE FROM todos WHERE id = ?', [id], function(err) {
         if (err) {
             res.status(500).json({ error: err.message });
             return;
@@ -589,51 +899,6 @@ app.delete('/api/standalone-todos/:id', (req, res) => {
         }
         
         res.json({ message: 'Todo deleted successfully' });
-    });
-});
-
-// Update todo completion status and priority
-app.put('/api/todos/:id', (req, res) => {
-    const { id } = req.params;
-    const { completed, completionComment, priority } = req.body;
-    const completedDate = completed ? new Date().toISOString() : null;
-    
-    let query = 'UPDATE todos SET completed = ?, completed_date = ?, completion_comment = ?';
-    let params = [completed, completedDate, completionComment || null];
-    
-    if (priority !== undefined) {
-        query += ', priority = ?';
-        params.push(priority);
-    }
-    
-    query += ' WHERE id = ?';
-    params.push(id);
-    
-    db.run(query, params, function(err) {
-        if (err) {
-            res.status(500).json({ error: err.message });
-            return;
-        }
-        
-        if (this.changes === 0) {
-            res.status(404).json({ error: 'Todo not found' });
-            return;
-        }
-        
-        // Get updated todo
-        db.get('SELECT * FROM todos WHERE id = ?', [id], (err, row) => {
-            if (err) {
-                res.status(500).json({ error: err.message });
-                return;
-            }
-            
-            const todo = {
-                ...row,
-                completed: Boolean(row.completed)
-            };
-            
-            res.json(todo);
-        });
     });
 });
 

@@ -1,22 +1,17 @@
-# Notes & TODOs App with SQLite
+# Notes App
 
-A comprehensive notes and TODO tracking application with SQLite database backend and Docker support.
+A comprehensive notes application with SQLite database backend and Docker support.
 
 ## Features
 
-- 📝 **Rich Note Management**: Create, edit, and delete notes with full Markdown support
-- ✅ **Smart TODO System**: 
-  - Automatic TODO extraction from notes (under `TODO` markdown headings)
+- Create, edit, and delete notes with full Markdown support
+- Automatic TODO extraction from notes (under `TODO` markdown headings)
   - Priority support with markdown syntax: `[H]`, `[M]`, `[L]` or `!!!`, `!!`, `!`
   - Standalone TODOs (not tied to notes)
   - Edit TODOs with automatic note synchronization
-- 🗄️ **Persistent Storage**: SQLite database with automatic migrations
-- 🔍 **Advanced Search**: 
-  - Search notes by content, title
-  - Tag-specific search with `tag:tagname` syntax
-  - TODO search functionality
-- 📊 **TODO Management**: Completion tracking, priority sorting, progress indicators
-- 🐳 **Docker Ready**: Full containerization with volume mounts for data persistence
+- SQLite database with automatic migrations
+- Search notes and todos by content, title
+- Tag-specific search with `tag:tagname` syntax
 
 ## Quick Start Options
 
@@ -114,10 +109,17 @@ TODOs are automatically extracted and can be managed from the TODOs tab.
 
 The application uses SQLite with automatic migrations:
 
-- **notes**: Stores note data (id, title, content, tags, date)
-- **todos**: Stores extracted TODOs (id, note_id, text, completed, priority, etc.)
-- **standalone_todos**: Stores independent TODOs not tied to notes
-- **migrations**: Tracks database schema versions
+### Core Tables
+- **notes**: Stores note data (id, title, content, date, updated_at)
+- **todos**: Stores all TODOs - both from notes and standalone (id, note_id, note_title, text, completed, priority, created_date, completed_date, completion_comment)
+
+### Tag System (Normalized)
+- **tags**: Stores unique tag names (id, name, created_date)
+- **note_tags**: Junction table linking notes to tags (note_id, tag_id)
+- **todo_tags**: Junction table linking todos to tags (todo_id, tag_id)
+
+### System
+- **migrations**: Tracks database schema versions for automatic updates
 
 **Database Location:**
 - `./data/notes.db` (mounted volume in case of docker)
@@ -132,18 +134,11 @@ The application uses SQLite with automatic migrations:
 - `DELETE /api/notes/:id` - Delete note
 
 ### TODOs
-- `GET /api/todos` - Get all note-based todos (supports `?search=` parameter)
-- `PUT /api/todos/:id` - Update todo completion status
-- `PUT /api/todos/:id/edit` - Edit todo text/priority (updates source note)
+- `GET /api/todos` - Get all TODOs with optional filtering (supports `?search=`, `?tag=`, `?standalone=` parameters)
+- `POST /api/todos` - Create new TODO (standalone or note-linked)
+- `PUT /api/todos/:id` - Update todo completion status and priority
+- `PUT /api/todos/:id/edit` - Edit todo text/priority (updates source note for note-based TODOs)
+- `DELETE /api/todos/:id` - Delete TODO
 
-### Standalone TODOs
-- `GET /api/standalone-todos` - Get standalone todos (supports `?search=` parameter)
-- `POST /api/standalone-todos` - Create new standalone todo
-- `PUT /api/standalone-todos/:id` - Update standalone todo
-- `DELETE /api/standalone-todos/:id` - Delete standalone todo
-
-## Search Features
-
-- **General search**: Search notes by title and content
-- **Tag search**: Use `tag:work` to search for specific tags
-- **TODO search**: Search across all TODO text and source note titles
+### Tags
+- `GET /api/tags` - Get all available tags
