@@ -1,0 +1,292 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Notes App</title>
+    <link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+    <!-- Skip link for keyboard users -->
+    <a href="#mainContent" class="skip-link">Skip to main content</a>
+
+    <!-- Screen reader announcements -->
+    <div id="srAnnouncer" class="sr-only" aria-live="polite" aria-atomic="true"></div>
+
+    <div class="container">
+        <h1>📝 <span data-i18n="appTitle">Notes App</span></h1>
+
+        <nav class="tabs" role="tablist" aria-label="Main navigation">
+            <button class="tab active" data-tab="notes" role="tab" aria-selected="true" aria-controls="notesView" id="tabNotes" onclick="switchTab('notes', this)">
+                <span data-i18n="notes">Notes</span>
+            </button>
+            <button class="tab" data-tab="todos" role="tab" aria-selected="false" aria-controls="todosView" id="tabTodos" onclick="switchTab('todos', this)">
+                <span data-i18n="todos">TODOs</span>
+            </button>
+        </nav>
+
+        <main id="mainContent">
+            <div id="notesView" role="tabpanel" aria-labelledby="tabNotes">
+                <div class="controls">
+                    <div class="controls-row">
+                        <div class="search-bar">
+                            <label for="searchInput" class="sr-only" data-i18n="searchNotes">Search notes</label>
+                            <input type="search" id="searchInput" placeholder="Search notes or use 'tag:tagname' for tag search...">
+                        </div>
+                        <fieldset class="date-filter">
+                            <legend class="sr-only">Date range filter</legend>
+                            <label for="dateFrom" class="sr-only">From date</label>
+                            <input type="date" id="dateFrom" aria-label="From date">
+                            <span aria-hidden="true" data-i18n="to">to</span>
+                            <label for="dateTo" class="sr-only">To date</label>
+                            <input type="date" id="dateTo" aria-label="To date">
+                            <button class="btn-secondary" onclick="clearDateFilter()" data-i18n="clear">Clear</button>
+                        </fieldset>
+                        <button class="btn-primary" onclick="openNewNoteModal()" data-i18n="newNote">+ New Note</button>
+                    </div>
+                </div>
+                <div id="notesContainer" aria-label="Notes list"></div>
+            </div>
+
+            <div id="todosView" role="tabpanel" aria-labelledby="tabTodos" style="display:none;">
+                <div class="todo-section">
+                    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:20px;">
+                        <h2>📋 <span data-i18n="todoItems">TODO Items</span></h2>
+                        <button class="btn-primary" onclick="openNewTodoModal()" data-i18n="addTodo">+ Add TODO</button>
+                    </div>
+                    <div style="margin-bottom:20px;">
+                        <div class="search-bar">
+                            <label for="todoSearchInput" class="sr-only" data-i18n="searchTodos">Search TODOs</label>
+                            <input type="search" id="todoSearchInput" placeholder="Search TODOs or use 'tag:tagname' for tag search...">
+                        </div>
+                    </div>
+                    <div class="todo-filters">
+                        <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap;">
+                            <fieldset class="filter-group">
+                                <legend data-i18n="status">Status</legend>
+                                <button class="todo-filter-btn active" onclick="filterTodos('active', this)" aria-pressed="true" data-i18n="active">Active</button>
+                                <button class="todo-filter-btn" onclick="filterTodos('completed', this)" aria-pressed="false" data-i18n="completed">Completed</button>
+                                <button class="todo-filter-btn" onclick="filterTodos('all', this)" aria-pressed="false" data-i18n="all">All</button>
+                            </fieldset>
+                            <fieldset class="filter-group">
+                                <legend data-i18n="priority">Priority</legend>
+                                <button class="priority-filter-btn active" onclick="filterByPriority('all', this)" aria-pressed="true" data-i18n="all">All</button>
+                                <button class="priority-filter-btn priority-high" onclick="filterByPriority('high', this)" aria-pressed="false" data-i18n="high">High</button>
+                                <button class="priority-filter-btn priority-medium" onclick="filterByPriority('medium', this)" aria-pressed="false" data-i18n="medium">Medium</button>
+                                <button class="priority-filter-btn priority-low" onclick="filterByPriority('low', this)" aria-pressed="false" data-i18n="low">Low</button>
+                            </fieldset>
+                        </div>
+                    </div>
+                    <div id="todosContainer" class="todo-container" aria-label="TODO list"></div>
+                </div>
+            </div>
+        </main>
+
+        <div class="empty-state" id="emptyState" style="display:none;" role="status">
+            <h2 data-i18n="noNotesYet">No notes yet</h2>
+            <p data-i18n="createFirstNote">Create your first note to get started!</p>
+        </div>
+
+        <div class="loading" id="loadingState" style="display:none;" role="status" aria-live="polite">
+            <h2 data-i18n="loading">Loading...</h2>
+        </div>
+
+        <div class="error" id="errorState" style="display:none;" role="alert" aria-live="assertive"></div>
+    </div>
+
+    <!-- Note Edit Modal -->
+    <div class="modal" id="noteModal" role="dialog" aria-modal="true" aria-labelledby="modalTitle" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="modalTitle" data-i18n="newNoteTitle">New Note</h2>
+                <button class="btn-close" onclick="closeModal()" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="noteForm" onsubmit="saveNote(event)">
+                    <div class="form-group">
+                        <label for="noteTitle" data-i18n="title">Title</label>
+                        <input type="text" id="noteTitle" required placeholder="Enter note title..." autocomplete="off">
+                    </div>
+                    <div class="form-group">
+                        <label for="noteContent" data-i18n="content">Content</label>
+                        <div class="preview-container">
+                            <div>
+                                <div class="preview-label" id="markdownInputLabel" data-i18n="markdownInput">Markdown Input</div>
+                                <textarea id="noteContent" required placeholder="Write your note here..." oninput="updatePreview()" aria-describedby="markdownHelpText"></textarea>
+                            </div>
+                            <div>
+                                <div class="preview-label" data-i18n="preview">Preview</div>
+                                <div id="preview" class="preview-pane" role="region" aria-label="Markdown preview" aria-live="polite"></div>
+                            </div>
+                        </div>
+                        <div class="markdown-help" id="markdownHelpText">
+                            <span data-i18n="markdownHelp">Supports basic Markdown. Add a TODO markdown heading with markdown list items to create trackable tasks.</span><br>
+                            <strong data-i18n="prioritySyntax">Priority syntax:</strong> <span data-i18n="prioritySyntaxDetail">Start TODOs with [H]/[HIGH] or !!! (high), [M]/[MED] or !! (medium), [L]/[LOW] or ! (low)</span><br>
+                            <strong data-i18n="priorityExample">Example:</strong> <span data-i18n="priorityExampleDetail">- [H] Important task, - !! Normal task, - ! Low priority task</span>
+                        </div>
+                    </div>
+                    <div class="form-group">
+                        <label for="noteTags" data-i18n="tagsLabel">Tags (comma separated)</label>
+                        <input type="text" id="noteTags" placeholder="e.g. work, personal, ideas" autocomplete="off">
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-secondary" onclick="closeModal()" data-i18n="cancel">Cancel</button>
+                        <button type="submit" class="btn-primary" data-i18n="saveNote">Save Note</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Preview Modal -->
+    <div class="modal" id="previewModal" role="dialog" aria-modal="true" aria-labelledby="previewModalTitle" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="previewModalTitle" data-i18n="notePreview">Note Preview</h2>
+                <div>
+                    <button class="btn-secondary" onclick="editFromPreview()" style="margin-right:10px;" data-i18n="edit">Edit</button>
+                    <button class="btn-close" onclick="closePreviewModal()" aria-label="Close">&times;</button>
+                </div>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <div id="previewContent" class="preview-content-box"></div>
+                    <div id="previewTags" class="preview-tags-box">
+                        <strong data-i18n="tags">Tags:</strong> <span id="previewTagsList"></span>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- TODO Preview Modal -->
+    <div class="modal" id="todoPreviewModal" role="dialog" aria-modal="true" aria-labelledby="todoPreviewTitle" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="todoPreviewTitle" data-i18n="todoDetails">TODO Details</h2>
+                <button class="btn-close" onclick="closeTodoPreview()" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <dl class="detail-list">
+                    <dt data-i18n="text">Text</dt>
+                    <dd id="todoPreviewText"></dd>
+
+                    <dt data-i18n="priority">Priority</dt>
+                    <dd id="todoPreviewPriority"></dd>
+
+                    <dt data-i18n="status">Status</dt>
+                    <dd id="todoPreviewStatus"></dd>
+
+                    <div id="todoPreviewTags"></div>
+
+                    <dt data-i18n="source">Source</dt>
+                    <dd id="todoPreviewSource"></dd>
+
+                    <dt data-i18n="created">Created</dt>
+                    <dd id="todoPreviewCreated"></dd>
+
+                    <div id="todoPreviewCompletionDetails" style="display:none;">
+                        <dt data-i18n="completedLabel">Completed</dt>
+                        <dd id="todoPreviewCompleted"></dd>
+                        <dt data-i18n="completionNote">Completion Note</dt>
+                        <dd id="todoPreviewCompletionComment"></dd>
+                    </div>
+                </dl>
+            </div>
+        </div>
+    </div>
+
+    <!-- Complete TODO Modal -->
+    <div class="modal" id="todoModal" role="dialog" aria-modal="true" aria-labelledby="completeTodoTitle" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="completeTodoTitle" data-i18n="completeTodo">Complete TODO</h2>
+                <button class="btn-close" onclick="closeTodoModal()" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <div class="form-group">
+                    <label for="completionComment" data-i18n="completionComment">Completion Comment (optional)</label>
+                    <textarea id="completionComment" placeholder="Add any notes about completing this task..."></textarea>
+                </div>
+                <div class="modal-footer">
+                    <button type="button" class="btn-secondary" onclick="closeTodoModal()" data-i18n="cancel">Cancel</button>
+                    <button type="button" class="btn-primary" onclick="confirmCompleteTodo()" data-i18n="complete">Complete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New TODO Modal -->
+    <div class="modal" id="newTodoModal" role="dialog" aria-modal="true" aria-labelledby="newTodoTitle" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="newTodoTitle" data-i18n="addNewTodo">Add New TODO</h2>
+                <button class="btn-close" onclick="closeNewTodoModal()" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="newTodoForm" onsubmit="saveNewTodo(event)">
+                    <div class="form-group">
+                        <label for="newTodoText" data-i18n="todoText">TODO Text</label>
+                        <textarea id="newTodoText" required placeholder="Enter your TODO here..." style="min-height:100px;"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="newTodoPriority" data-i18n="priority">Priority</label>
+                        <select id="newTodoPriority" class="form-select">
+                            <option value="low" data-i18n="low">Low</option>
+                            <option value="medium" selected data-i18n="medium">Medium</option>
+                            <option value="high" data-i18n="high">High</option>
+                        </select>
+                    </div>
+                    <div class="form-group">
+                        <label for="newTodoTags" data-i18n="todoTagsLabel">Tags (comma-separated)</label>
+                        <input type="text" id="newTodoTags" placeholder="Enter tags separated by commas..." class="form-input">
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-secondary" onclick="closeNewTodoModal()" data-i18n="cancel">Cancel</button>
+                        <button type="submit" class="btn-primary" data-i18n="addTodo">Add TODO</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Edit TODO Modal -->
+    <div class="modal" id="editTodoModal" role="dialog" aria-modal="true" aria-labelledby="editTodoTitle" aria-hidden="true">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h2 class="modal-title" id="editTodoTitle" data-i18n="editTodo">Edit TODO</h2>
+                <button class="btn-close" onclick="closeEditTodoModal()" aria-label="Close">&times;</button>
+            </div>
+            <div class="modal-body">
+                <form id="editTodoForm" onsubmit="saveEditedTodo(event)">
+                    <div class="form-group">
+                        <label for="editTodoText" data-i18n="todoText">TODO Text</label>
+                        <textarea id="editTodoText" required placeholder="Enter your TODO here..." style="min-height:100px;"></textarea>
+                    </div>
+                    <div class="form-group">
+                        <label for="editTodoPriority" data-i18n="priority">Priority</label>
+                        <select id="editTodoPriority" class="form-select">
+                            <option value="low" data-i18n="low">Low</option>
+                            <option value="medium" data-i18n="medium">Medium</option>
+                            <option value="high" data-i18n="high">High</option>
+                        </select>
+                    </div>
+                    <div id="editTodoWarning" class="form-group" style="display:none;">
+                        <div class="warning-box" role="alert">
+                            <strong>Note:</strong> <span data-i18n="editTodoWarning">This TODO comes from a note. Editing it will update the original note as well.</span>
+                        </div>
+                    </div>
+                    <div class="modal-footer">
+                        <button type="button" class="btn-secondary" onclick="closeEditTodoModal()" data-i18n="cancel">Cancel</button>
+                        <button type="submit" class="btn-primary" data-i18n="saveChanges">Save Changes</button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <script src="/i18n.js"></script>
+    <script src="/modal.js"></script>
+    <script src="/app.js"></script>
+</body>
+</html>

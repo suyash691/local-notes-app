@@ -1,5 +1,3 @@
-const path = require('path');
-
 class MigrationManager {
     constructor(db) {
         this.db = db;
@@ -189,7 +187,12 @@ class MigrationManager {
                                             return;
                                         }
                                         
-                                        // Migrate existing tags from notes
+                                        // Migrate existing tags from notes (only if tags column exists)
+                                        this.db.all('PRAGMA table_info(notes)', (err, columns) => {
+                                            if (err) { reject(err); return; }
+                                            const hasTagsCol = columns.some(c => c.name === 'tags');
+                                            if (!hasTagsCol) { resolve(); return; }
+
                                         this.db.all('SELECT id, tags FROM notes WHERE tags IS NOT NULL AND tags != ""', (err, rows) => {
                                             if (err) {
                                                 reject(err);
@@ -266,6 +269,7 @@ class MigrationManager {
                                                 }
                                             });
                                         });
+                                        }); // close PRAGMA callback
                                     });
                                 });
                             });

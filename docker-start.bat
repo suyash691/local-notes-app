@@ -2,20 +2,31 @@
 echo Starting Notes App with Docker...
 echo.
 
-REM Create data directory if it doesn't exist
+REM Detect which compose command works
+docker compose version >nul 2>&1
+if %errorlevel%==0 (
+    set DC=docker compose
+) else (
+    docker-compose version >nul 2>&1
+    if %errorlevel%==0 (
+        set DC=docker-compose
+    ) else (
+        echo Error: neither 'docker compose' nor 'docker-compose' found.
+        exit /b 1
+    )
+)
+
 if not exist "data" (
     echo Creating data directory for database persistence...
     mkdir data
 )
 
-REM Start the application
 echo Starting containers...
-docker-compose up -d
+%DC% up --build -d
 
-REM Show status
 echo.
 echo Checking container status...
-docker-compose ps
+%DC% ps
 
 echo.
 echo ===========================================
@@ -25,7 +36,7 @@ echo  http://localhost:3000
 echo.
 echo  Your database is stored in: .\data\notes.db
 echo.
-echo  To stop the app, run: docker-compose down
-echo  To view logs, run: docker-compose logs -f
+echo  To stop the app, run: %DC% down
+echo  To view logs, run: %DC% logs -f
 echo ===========================================
 echo.

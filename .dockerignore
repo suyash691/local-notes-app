@@ -1,7 +1,9 @@
 node_modules
 npm-debug.log*
-notes.db
-notes.db-journal
+*.db
+*.db-journal
+*.db-wal
+*.db-shm
 .git
 .gitignore
 Dockerfile
@@ -12,3 +14,6 @@ docker-compose.yml
 .DS_Store
 Thumbs.db
 data/
+tests/
+jest.config.js
+playwright.config.js
